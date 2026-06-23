@@ -1,0 +1,140 @@
+<html>
+<head>
+    <title>Tic-Tac-Toe Online Multiplayer</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; background: #eef2f3; }
+        h1 { color: #2c3e50; margin-bottom: 5px; }
+        .board { display: grid; grid-template-columns: repeat(3, 100px); gap: 5px; width: 310px; margin: 20px auto; }
+        .cell { 
+            width: 100px; height: 100px; background: #fff; border: 2px solid #2c3e50; 
+            font-size: 2.5rem; font-weight: bold; cursor: pointer; 
+            display: flex; justify-content: center; align-items: center; 
+        }
+        button { padding: 10px 20px; font-size: 1rem; cursor: pointer; background: #34495e; color: #fff; border: none; border-radius: 5px; margin-top: 10px;}
+        #share-box { background: #dcdde1; padding: 10px; border-radius: 5px; width: 300px; margin: 10px auto; display: none; font-size: 0.9rem; word-break: break-all; }
+    </style>
+</head>
+<body>
+
+    <h1>Online Tic-Tac-Toe</h1>
+    <h2 id="role">Connecting...</h2>
+    <h3 id="status">Checking room availability...</h3>
+    
+    <div id="share-box"></div>
+
+    <div class="board">
+        <div class="cell" onclick="makeMove(0)"></div>
+        <div class="cell" onclick="makeMove(1)"></div>
+        <div class="cell" onclick="makeMove(2)"></div>
+        <div class="cell" onclick="makeMove(3)"></div>
+        <div class="cell" onclick="makeMove(4)"></div>
+        <div class="cell" onclick="makeMove(5)"></div>
+        <div class="cell" onclick="makeMove(6)"></div>
+        <div class="cell" onclick="makeMove(7)"></div>
+        <div class="cell" onclick="makeMove(8)"></div>
+    </div>
+
+    <button onclick="resetOnlineGame()">Reset Match</button>
+
+    <script>
+        const firebaseConfig = {
+            databaseURL: "https://tic-tac-toe-multiple-1d6d7-default-rtdb.firebaseio.com/"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        let roomId = urlParams.get('room');
+        
+        if (!roomId) {
+            roomId = "room_" + Math.floor(Math.random() * 10000);
+            window.history.pushState({}, '', '?room=' + roomId);
+        }
+
+        const db = firebase.database().ref("all_rooms/" + roomId);
+
+        let playerSymbol = ""; 
+        let currentTurn = "X";
+        let gameState = ["", "", "", "", "", "", "", "", ""];
+
+        db.once('value', (snapshot) => {
+            let data = snapshot.val();
+            if (!data || !data.player1) {
+                playerSymbol = "X";
+                db.update({ player1: true });
+                document.getElementById("role").innerText = "You are Player 1 (X)";
+                
+                const shareLink = window.location.href;
+                const shareBox = document.getElementById("share-box");
+                shareBox.style.display = "block";
+                shareBox.innerHTML = `<b>Bondho ke eiy link-ta pathan:</b><br>${shareLink}`;
+            } else if (!data.player2) {
+                playerSymbol = "O";
+                db.update({ player2: true });
+                document.getElementById("role").innerText = "You are Player 2 (O)";
+            } else {
+                playerSymbol = "SPECTATOR";
+                document.getElementById("role").innerText = "Room Full! Viewing Only";
+            }
+        });
+
+        db.on('value', (snapshot) => {
+            let data = snapshot.val();
+            if (data && data.board) {
+                gameState = data.board;
+                currentTurn = data.turn;
+                updateUI();
+                checkOnlineWin();
+            }
+        });
+
+        function makeMove(index) {
+            if (gameState[index] === "" && currentTurn === playerSymbol) {
+                gameState[index] = playerSymbol;
+                let nextTurn = playerSymbol === "X" ? "O" : "X";
+                db.update({ board: gameState, turn: nextTurn });
+            }
+        }
+
+        function updateUI() {
+            let cells = document.getElementsByClassName("cell");
+            for (let i = 0; i < 9; i++) {
+                cells[i].innerText = gameState[i];
+                cells[i].style.color = gameState[i] === "X" ? "blue" : "red";
+            }
+            document.getElementById("status").innerText = `Turn: Player ${currentTurn}`;
+        }
+
+        function checkOnlineWin() {
+            const winPatterns = [
+                [0, 1, 2], [3, 4, 5], [6, 7, 8],
+                [0, 3, 6], [1, 4, 7], [2, 5, 8],
+                [0, 4, 8], [2, 4, 6]
+            ];
+            winPatterns.forEach(pattern => {
+                if (gameState[pattern[0]] && gameState[pattern[0]] === gameState[pattern[1]] && gameState[pattern[0]] === gameState[pattern[2]]) {
+                    document.getElementById("status").innerText = `Player ${gameState[pattern[0]]} Wins! 🎉`;
+                }
+            });
+        }
+
+        function resetOnlineGame() {
+            db.set({
+                board: ["", "", "", "", "", "", "", "", ""],
+                turn: "X",
+                player1: null,
+                player2: null
+            });
+            location.reload();
+        }
+        
+        window.onbeforeunload = function() {
+            if(playerSymbol === "X") db.child("player1").remove();
+            if(playerSymbol === "O") db.child("player2").remove();
+        };
+    </script>
+</body>
+</html>
+
